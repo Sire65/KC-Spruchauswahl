@@ -47,6 +47,13 @@
   .variante.an { border-color: var(--rot); background: #fbf2f3; }
   .variante small { display: block; color: var(--text-leise); font-size: 14px; }
   .variante.keine { margin-top: 18px; }
+  .gewaehlt-box { margin-top: 26px; padding: 14px 16px; border-radius: 10px; background: var(--karte); border: 2px solid var(--rot); }
+  button.link { display: inline; width: auto; margin: 0 0 0 6px; padding: 0; background: none; color: var(--rot);
+    text-decoration: underline; font-size: inherit; font-weight: 600; }
+  button.link:hover { background: none; }
+  .fotohinweis { margin-top: 16px; padding: 14px 16px; border-left: 5px solid var(--gold); background: var(--gold-hell);
+    border-radius: 10px; text-align: left; }
+  .fotohinweis a { color: var(--rot); font-weight: 700; }
   button { display: block; width: 100%; margin-top: 22px; padding: 16px; border: 0; border-radius: 10px;
     background: var(--rot); color: #fff; font: inherit; font-weight: 700; font-size: 18px; cursor: pointer; }
   button:hover { background: var(--rot-dunkel); }
@@ -84,7 +91,7 @@
       <ol>
         <li>Lies dir die Sprüche durch.</li>
         <li>Setze bei deinem Lieblingsspruch einen Haken. Graue Sprüche hat schon jemand anderes ausgesucht.</li>
-        <li>Ganz unten auswählen, <strong>wie</strong> du erscheinen möchtest: mit Vorname oder vollem Namen, mit oder ohne Foto – oder gar nicht.</li>
+        <li id="schrittDarstellung">Ganz unten auswählen, <strong>wie</strong> du erscheinen möchtest: mit Vorname oder vollem Namen, mit oder ohne Foto – oder gar nicht.</li>
         <li>Auf <strong>„Auswahl absenden“</strong> tippen – fertig.</li>
       </ol>
     </div>
@@ -108,6 +115,16 @@
         <span><strong>Ich möchte gar nicht erscheinen</strong><small>kein Foto, kein Name, kein Spruch</small></span></label>
     </fieldset>
 
+    <div class="gewaehlt-box" id="darstellungKurz" hidden>
+      So erscheinst du in der Präsentation: <strong id="darstellungText"></strong>
+      <button type="button" class="link" id="darstellungAendern">ändern</button>
+    </div>
+
+    <div class="fotohinweis" id="fotoHinweis" hidden>
+      &#128247; <strong>Bitte sende Hansi das Foto per E-Mail, mit dem du in der Präsentation erscheinen möchtest.</strong><br>
+      An: <a class="fotoMail" href="mailto:ha-joko@web.de">ha-joko@web.de</a>
+    </div>
+
     <button id="senden" disabled>Auswahl absenden</button>
     <p class="leise" id="fehlt" style="margin-top:10px"></p>
     <p class="fehler" id="fehler" role="alert"></p>
@@ -119,6 +136,10 @@
       <h1>Danke für deine Mitarbeit!</h1>
       <p id="dankeText"></p>
       <blockquote id="dankeSpruch"></blockquote>
+      <div class="fotohinweis" id="dankeFoto" hidden>
+        &#128247; <strong>Bitte sende Hansi das Foto per E-Mail, mit dem du in der Präsentation erscheinen möchtest.</strong><br>
+        An: <a class="fotoMail" href="mailto:ha-joko@web.de">ha-joko@web.de</a>
+      </div>
       <button class="aendern" id="aendern">Auswahl doch noch ändern</button>
     </div>
   </section>
@@ -130,7 +151,11 @@
 (() => {
   const API = 'https://ptblnpiroqftcvlsrhac.supabase.co/rest/v1/rpc/';
   const KEY = 'sb_publishable_SqXIeGN-clcZ4gjmpLdSww_4DLfyy24';
-  const token = new URLSearchParams(location.search).get('t') || '';
+  const params = new URLSearchParams(location.search);
+  const token = params.get('t') || '';
+  // Kommt die Person direkt aus der Präsentations-Umfrage, ist die Darstellung schon gewählt (?d=…&von=umfrage)
+  const vonUmfrage = params.get('von') === 'umfrage';
+  let vorgabe = params.get('d');
   const $ = (id) => document.getElementById(id);
   let daten = null, gewaehlt = null;
 
@@ -161,9 +186,18 @@
   };
   const radios = () => [...document.querySelectorAll('input[name="darstellung"]')];
   const variante = () => (radios().find(r => r.checked) || {}).value || null;
+  if (!TEXTE[vorgabe]) vorgabe = null;
+
+  function kompakt(an) {
+    $('darstellung').hidden = an;
+    $('darstellungKurz').hidden = !an;
+    $('schrittDarstellung').hidden = an;
+  }
 
   function aktualisiereKnopf() {
     const v = variante(), aus = v === 'keine';
+    $('darstellungText').textContent = TEXTE[v] || '';
+    $('fotoHinweis').hidden = !(v || '').endsWith('_foto');
     $('liste').classList.toggle('aus', aus);
     for (const r of radios()) r.closest('.variante').classList.toggle('an', r.checked);
     $('senden').disabled = !(v && (aus || gewaehlt));
@@ -212,7 +246,16 @@
     $('bsp_vorname_foto').textContent = 'z. B. ' + vn + ' mit deinem Foto';
     $('bsp_vollname').textContent = 'z. B. ' + voll;
     $('bsp_vollname_foto').textContent = 'z. B. ' + voll + ' mit deinem Foto';
+    const betreff = 'Foto für die Weihnachtsmarkt-Präsentation – ' + daten.ich.vollname;
+    document.querySelectorAll('.fotoMail').forEach(a => { a.href = 'mailto:ha-joko@web.de?subject=' + encodeURIComponent(betreff); });
     const bisher = $('bisher');
+    bisher.hidden = true;
+    kompakt(false);
+    if (vorgabe && daten.offen) {
+      // nur beim ersten Laden: Darstellung aus der Umfrage übernehmen
+      radios().forEach(r => { r.checked = r.value === vorgabe; });
+      if (vonUmfrage) kompakt(true);
+    }
     if (!daten.offen) {
       bisher.hidden = false;
       bisher.textContent = 'Die Auswahl ist abgeschlossen. Änderungen sind nicht mehr möglich.';
@@ -223,8 +266,15 @@
         ? 'Du hast angegeben, dass du gar nicht in der Präsentation erscheinen möchtest. Du kannst das hier noch ändern.'
         : 'Deine bisherige Auswahl ist markiert. Du kannst sie hier noch ändern.';
     }
+    if (vorgabe && vonUmfrage && daten.offen) {
+      bisher.hidden = false;
+      bisher.textContent = 'Danke für deine Bewertung! Jetzt such dir bitte noch deinen Spruch aus.';
+    }
+    vorgabe = null;
     baueListe(); aktualisiereKnopf(); zeige('auswahl');
   }
+
+  $('darstellungAendern').addEventListener('click', () => { kompakt(false); $('darstellung').scrollIntoView({ behavior: 'smooth' }); });
 
   for (const r of radios()) r.addEventListener('change', () => {
     if (variante() === 'keine') { gewaehlt = null; baueListe(); }
@@ -258,6 +308,7 @@
       $('dankeText').textContent = 'Du erscheinst auf dem TV an der Nebenhütte ' + TEXTE[v] + ':';
       $('dankeSpruch').textContent = s ? '„' + s.text + '“' : '';
     }
+    $('dankeFoto').hidden = !v.endsWith('_foto');
     zeige('fertig');
   });
 
