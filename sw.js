@@ -11,6 +11,7 @@ self.addEventListener('push', (event) => {
     icon: 'icon-192.png',
     badge: 'icon-192.png',
     data: msg.data || {},
+    requireInteraction: true,   // bleibt stehen, bis man sie antippt oder wegwischt (Android/PC; iPhone: Banner-Stil „Dauerhaft“)
     tag: (msg.data && msg.data.notificationId) || undefined
   };
   event.waitUntil(self.registration.showNotification(title, options));
