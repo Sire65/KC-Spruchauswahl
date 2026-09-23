@@ -9,7 +9,10 @@
   const istApp = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const kannPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
   // Push soll aufs HANDY. Am PC zeigen wir deshalb einen QR-Code zum Abscannen statt des Knopfs.
-  const istHandy = istIOS || /Android|Mobile|iPhone|iPod/i.test(navigator.userAgent);
+  const istTablet = /iPad/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
+    (/Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent));
+  const istHandy = !istTablet && (istIOS || /Android|Mobile|iPhone|iPod/i.test(navigator.userAgent));
   const QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js';
 
   function ladeQrLib() {
@@ -112,9 +115,15 @@
     }
   }
 
-  async function amPc(box, token) {
+  async function amPc(box, token, alsZusatz) {
     const link = BASE + 'push.html?t=' + encodeURIComponent(token);
-    box.querySelectorAll('p')[1].innerHTML = 'Die Push-Nachrichten kommen aufs <strong>Handy</strong> – deshalb wird die Freischaltung dort gemacht:';
+    if (alsZusatz) {
+      box.className = '';
+      box.querySelectorAll('p')[0].remove();
+      box.querySelectorAll('p')[0].innerHTML = '<strong>Lieber aufs Handy?</strong> Dann scanne diesen QR-Code mit dem Handy:';
+    } else {
+      box.querySelectorAll('p')[1].innerHTML = 'Die Push-Nachrichten kommen aufs <strong>Handy</strong> – deshalb wird die Freischaltung dort gemacht:';
+    }
     const knopf = box.querySelector('button');
     const qr = document.createElement('div'); qr.className = 'qr';
     qr.innerHTML = `<div class="code">QR-Code wird geladen …</div>
@@ -153,6 +162,19 @@
              Wir können die Push-Nachrichten auch später noch für dich freischalten.</p>
         </div>`;
       const box = ziel.querySelector('.kcpush');
+      if (istTablet) {
+        // Tablet: auf diesem Gerät freischalten ODER per QR-Code aufs Handy
+        const knopf = box.querySelector('button');
+        knopf.textContent = 'Push auf diesem Tablet freischalten';
+        knopf.addEventListener('click', () => freischalten(box, token, quelle || ''));
+        const extra = document.createElement('div');
+        extra.style.cssText = 'margin-top:18px;padding-top:14px;border-top:1px dashed #d8c9a8';
+        box.querySelector('.st').after(extra);
+        const kopie = box.cloneNode(false); kopie.innerHTML = '<p></p><p></p><button></button>';
+        extra.appendChild(kopie);
+        amPc(kopie, token, true);
+        return;
+      }
       if (!istHandy) { amPc(box, token); return; }
       box.querySelector('button').addEventListener('click', () => freischalten(box, token, quelle || ''));
     }
