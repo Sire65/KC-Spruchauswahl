@@ -60,6 +60,13 @@
     return Uint8Array.from(raw, (c) => c.charCodeAt(0));
   }
 
+  function gleicherSchluessel(sub, schluessel) {
+    const k = sub.options && sub.options.applicationServerKey;
+    if (!k) return true;                       // Browser verrät den Schlüssel nicht -> behalten, Server prüft
+    const a = new Uint8Array(k);
+    return a.length === schluessel.length && a.every((x, i) => x === schluessel[i]);
+  }
+
   function aktiv(reg) {
     if (reg.active) return Promise.resolve(reg);
     return new Promise((ok) => {
@@ -107,13 +114,26 @@
       const reg = await aktiv(await navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE }));
       const cfg = await (await fetch(FN)).json();
       if (!cfg.vapidPublicKey) throw new Error('kein Schlüssel');
+      const schluessel = b64ToBytes(cfg.vapidPublicKey);
+      const neu = () => reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: schluessel });
+      const anmelden = async (s) => {
+        const r = await fetch(FN, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'subscribe', token, subscription: s.toJSON(), userAgent: navigator.userAgent, quelle })
+        });
+        return r.json().catch(() => ({}));
+      };
+      // Vorhandene Anmeldung nur behalten, wenn sie zum aktuellen Schlüssel passt
       let sub = await reg.pushManager.getSubscription();
-      if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(cfg.vapidPublicKey) });
-      const r = await fetch(FN, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'subscribe', token, subscription: sub.toJSON(), userAgent: navigator.userAgent, quelle })
-      });
-      const d = await r.json().catch(() => ({}));
+      if (sub && !gleicherSchluessel(sub, schluessel)) { await sub.unsubscribe().catch(() => {}); sub = null; }
+      if (!sub) sub = await neu();
+      let d = await anmelden(sub);
+      // Google lehnt eine alte/ungültige Anmeldung ab (404/410/403): einmal frisch anmelden und erneut versuchen
+      if (!d.ok && ['404', '410', '403'].includes(String(d.code))) {
+        await sub.unsubscribe().catch(() => {});
+        sub = await neu();
+        d = await anmelden(sub);
+      }
       if (d.ok) {
         zeige('✅ Push ist freigeschaltet! Deine erste Nachricht vom Köcheclub ist unterwegs.', 'ok');
         knopf.textContent = 'Push ist freigeschaltet';
