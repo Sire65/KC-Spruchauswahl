@@ -142,6 +142,7 @@
         An: <a class="fotoMail" href="mailto:ha-joko@web.de">ha-joko@web.de</a>
       </div>
       <button class="aendern" id="aendern">Auswahl doch noch ändern</button>
+      <div id="pushBox"></div>
       <p class="schliessen">Du bist fertig. Bitte schließe das Browserfenster jetzt oben über das <strong>✕</strong>.</p>
     </div>
   </section>
@@ -149,6 +150,7 @@
   <p class="leise">Köcheclub Werne · Weihnachtsmarkt 2026</p>
 </main>
 
+<script src="push.js"></script>
 <script>
 (() => {
   const API = 'https://ptblnpiroqftcvlsrhac.supabase.co/rest/v1/rpc/';
@@ -311,6 +313,7 @@
       $('dankeSpruch').textContent = s ? '„' + s.text + '“' : '';
     }
     $('dankeFoto').hidden = !v.endsWith('_foto');
+    if (window.KCPush && !$('pushBox').firstChild) KCPush.anbieten($('pushBox'), token, 'spruchauswahl');
     zeige('fertig');
   });
 

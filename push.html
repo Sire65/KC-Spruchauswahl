@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta name="theme-color" content="#7a1f2b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Köcheclub">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Köcheclub Werne – Push-Nachrichten</title>
+<style>
+  :root { --rot:#7a1f2b; --gold:#b8913a; --grund:#faf7f2; --text:#2a2220; --leise:#6b5f5a; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--grund); color:var(--text); font:17px/1.5 "Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif; }
+  main { max-width:620px; margin:0 auto; padding:24px 16px 48px; }
+  header { text-align:center; padding-bottom:18px; border-bottom:3px solid var(--gold); margin-bottom:8px; }
+  header img { width:110px; display:block; margin:0 auto 4px; }
+  header .club { font-size:26px; font-weight:700; color:var(--rot); margin:0; }
+  .leise { color:var(--leise); font-size:14px; text-align:center; margin-top:28px; }
+  .fehlt { background:#fff; border:1px solid #e6ddd0; border-left:5px solid var(--gold); border-radius:10px; padding:16px; margin-top:22px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="kc-kochmuetze-schwarz.webp" alt="Kochmütze – Logo Köcheclub Werne">
+    <p class="club">Köcheclub Werne</p>
+  </header>
+  <div id="push"></div>
+  <p class="leise">Köcheclub Werne</p>
+</main>
+<script src="push.js"></script>
+<script>
+  (() => {
+    const t = new URLSearchParams(location.search).get('t');
+    if (t) KCPush.anbieten(document.getElementById('push'), t, 'push-seite');
+    else document.getElementById('push').innerHTML =
+      '<div class="fehlt">Bitte öffne diese Seite über deinen persönlichen Link (aus der E-Mail oder WhatsApp von Hansi).</div>';
+  })();
+</script>
+</body>
+</html>
