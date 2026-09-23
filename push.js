@@ -34,6 +34,9 @@
   .kcpush .st.ok{color:#2f6b3a}.kcpush .st.fehler{color:#a3202e}
   .kcpush .klein{font-size:14px;color:#6b5f5a;margin-top:12px}
   .kcpush ol{margin:6px 0 10px;padding-left:22px}
+  .kcpush .test{margin-top:14px}
+  .kcpush button.zweit{background:#fff;color:#7a1f2b;border:2px solid #7a1f2b;font-size:16px;padding:12px}
+  .kcpush .tst{margin-top:8px;font-weight:600;min-height:1.2em}.kcpush .tst.ok{color:#2f6b3a}.kcpush .tst.fehler{color:#a3202e}
   .kcpush .ios{display:grid;gap:10px;margin-top:4px}
   .kcpush .schritt{display:flex;align-items:center;gap:14px;padding:12px 14px;background:#fff;border:1px solid #e6ddd0;border-radius:12px;font-size:18px;font-weight:400;color:#2a2220}
   .kcpush .schritt .nr{flex:none;width:34px;height:34px;border-radius:50%;background:#7a1f2b;color:#fff;font-weight:700;display:grid;place-items:center}
@@ -112,6 +115,7 @@
       if (d.ok) {
         zeige('✅ Push ist freigeschaltet! Deine erste Nachricht vom Köcheclub ist unterwegs.', 'ok');
         knopf.textContent = 'Push ist freigeschaltet';
+        testBereich(box, token, sub.endpoint);
       } else if (d.grund === 'link_ungueltig') {
         zeige('Dein persönlicher Link ist nicht gültig. Bitte melde dich bei Hansi.', 'fehler'); knopf.disabled = false;
       } else {
@@ -122,6 +126,39 @@
       zeige('Das hat leider nicht geklappt. Bitte versuche es noch einmal oder melde dich bei Hansi.', 'fehler');
       knopf.disabled = false;
     }
+  }
+
+  // Test-Nachricht: nach der Freischaltung und wenn Push auf diesem Gerät schon an ist
+  function testBereich(box, token, endpoint) {
+    if (box.querySelector('.test')) return;
+    const t = document.createElement('div'); t.className = 'test';
+    t.innerHTML = `<p class="klein">Keine Nachricht bekommen? Schau oben in die Benachrichtigungsleiste – oder:</p>
+      <button type="button" class="zweit">Test-Nachricht senden</button><div class="tst"></div>`;
+    box.querySelector('.st').after(t);
+    const k = t.querySelector('button'), st = t.querySelector('.tst');
+    k.addEventListener('click', async () => {
+      k.disabled = true; st.className = 'tst'; st.textContent = 'Wird gesendet …';
+      try {
+        const r = await fetch(FN, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'test', token, endpoint }) });
+        const d = await r.json().catch(() => ({}));
+        if (d.ok) { st.className = 'tst ok'; st.textContent = '✅ Test-Nachricht ist unterwegs – schau aufs Handy.'; }
+        else { st.className = 'tst fehler'; st.textContent = 'Das hat nicht geklappt. Bitte tippe oben noch einmal auf „Push freischalten“.'; }
+      } catch { st.className = 'tst fehler'; st.textContent = 'Keine Verbindung. Bitte später noch einmal versuchen.'; }
+      setTimeout(() => { k.disabled = false; }, 5000);
+    });
+  }
+
+  async function schonAn(box, token) {
+    if (!kannPush || Notification.permission !== 'granted') return;
+    try {
+      const reg = await navigator.serviceWorker.getRegistration(BASE);
+      const sub = reg && await reg.pushManager.getSubscription();
+      if (!sub) return;
+      const st = box.querySelector('.st');
+      st.className = 'st ok'; st.textContent = '✅ Push ist auf diesem Gerät schon an.';
+      testBereich(box, token, sub.endpoint);
+    } catch {}
   }
 
   async function amPc(box, token, alsZusatz) {
@@ -191,10 +228,12 @@
         const kopie = box.cloneNode(false); kopie.innerHTML = '<p></p><p></p><button></button>';
         extra.appendChild(kopie);
         amPc(kopie, token, true);
+        schonAn(box, token);
         return;
       }
       if (!istHandy) { amPc(box, token); return; }
       box.querySelector('button').addEventListener('click', () => freischalten(box, token, quelle || ''));
+      schonAn(box, token);
     }
   };
 })();
