@@ -34,6 +34,11 @@
   .kcpush .st.ok{color:#2f6b3a}.kcpush .st.fehler{color:#a3202e}
   .kcpush .klein{font-size:14px;color:#6b5f5a;margin-top:12px}
   .kcpush ol{margin:6px 0 10px;padding-left:22px}
+  .kcpush .ios{display:grid;gap:10px;margin-top:4px}
+  .kcpush .schritt{display:flex;align-items:center;gap:14px;padding:12px 14px;background:#fff;border:1px solid #e6ddd0;border-radius:12px;font-size:18px;font-weight:400;color:#2a2220}
+  .kcpush .schritt .nr{flex:none;width:34px;height:34px;border-radius:50%;background:#7a1f2b;color:#fff;font-weight:700;display:grid;place-items:center}
+  .kcpush .schritt .bild{flex:none;width:36px;display:grid;place-items:center}
+  .kcpush .schritt .bild img{border-radius:8px}
   .kcpush .qr{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}
   .kcpush .qr .code{background:#fff;padding:8px;border:1px solid #e6ddd0;border-radius:8px;line-height:0}
   .kcpush .qr .code svg{width:170px;height:170px}
@@ -59,23 +64,27 @@
     });
   }
 
-  function iosAnleitung(token) {
-    const aufPushSeite = /push\.html$/.test(location.pathname);
-    const link = BASE + 'push.html?t=' + encodeURIComponent(token);
-    return `<p><strong>Auf dem iPhone geht das nur über den Home-Bildschirm:</strong></p>
-      <ol>
-        ${aufPushSeite ? '' : `<li>Öffne diese Seite: <a href="${link}">Push-Seite öffnen</a></li>`}
-        <li>Tippe unten auf <strong>Teilen</strong> (Quadrat mit Pfeil nach oben).</li>
-        <li>Wähle <strong>„Zum Home-Bildschirm“</strong> und tippe auf „Hinzufügen“.</li>
-        <li>Öffne <strong>„Köcheclub“</strong> auf deinem Home-Bildschirm und tippe dort auf <strong>„Push freischalten“</strong>.</li>
-      </ol>`;
+  // iPhone: nur 3 große Schritte mit Bild, kaum Text.
+  const ICON_TEILEN = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#0a7aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+  const ICON_PLUS = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2a2220" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
+  function iosAnleitung() {
+    const icon = BASE + 'icon-192.png';
+    return `<div class="ios">
+        <div class="schritt"><span class="nr">1</span><span class="bild">${ICON_TEILEN}</span><span>Unten auf <strong>Teilen</strong> tippen</span></div>
+        <div class="schritt"><span class="nr">2</span><span class="bild">${ICON_PLUS}</span><span><strong>„Zum Home-Bildschirm“</strong> tippen</span></div>
+        <div class="schritt"><span class="nr">3</span><span class="bild"><img src="${icon}" alt="" width="32" height="32"></span><span><strong>Köcheclub</strong> auf dem Home-Bildschirm öffnen</span></div>
+      </div>`;
   }
 
   async function freischalten(box, token, quelle) {
     const knopf = box.querySelector('button'), st = box.querySelector('.st');
     const zeige = (text, art) => { st.className = 'st ' + (art || ''); st.innerHTML = text; };
 
-    if (istIOS && !istApp) { zeige(iosAnleitung(token)); return; }
+    if (istIOS && !istApp) {
+      // iPhone im Browser: direkt zur Push-Seite, dort stehen die 3 Schritte
+      if (!/push\.html$/.test(location.pathname)) { location.href = BASE + 'push.html?t=' + encodeURIComponent(token); return; }
+      zeige(iosAnleitung()); return;
+    }
     if (!kannPush) {
       zeige('Dieser Browser kann leider keine Push-Nachrichten empfangen. Bitte öffne den Link in <strong>Chrome</strong> (Android) ' +
         'bzw. <strong>Safari</strong> (iPhone) – z. B. über „⋮ → Im Browser öffnen“. Oder melde dich bei Hansi.', 'fehler');
@@ -162,6 +171,15 @@
              Wir können die Push-Nachrichten auch später noch für dich freischalten.</p>
         </div>`;
       const box = ziel.querySelector('.kcpush');
+      if (istIOS && !istApp && /push\.html$/.test(location.pathname)) {
+        box.querySelectorAll('p')[1].innerHTML = '<strong>So geht es auf dem iPhone:</strong>';
+        const schritte = document.createElement('div'); schritte.innerHTML = iosAnleitung();
+        box.querySelector('button').replaceWith(schritte);
+        const danach = document.createElement('p'); danach.style.marginTop = '12px';
+        danach.innerHTML = 'Dort dann auf <strong>„Push freischalten“</strong> tippen – fertig.';
+        schritte.after(danach);
+        return;
+      }
       if (istTablet) {
         // Tablet: auf diesem Gerät freischalten ODER per QR-Code aufs Handy
         const knopf = box.querySelector('button');
