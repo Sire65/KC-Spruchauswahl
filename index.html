@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Köcheclub Werne – Spruchauswahl</title>
+<style>
+  :root {
+    --rot: #7a1f2b; --rot-dunkel: #5c1520; --gold: #b8913a; --gold-hell: #f4ead2;
+    --text: #2a2220; --text-leise: #6b5f5a; --grund: #faf7f2; --karte: #ffffff;
+    --linie: #e6ddd0; --grau: #efebe6; --ok: #2f6b3a;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--grund); color: var(--text);
+    font: 17px/1.5 "Segoe UI", system-ui, -apple-system, Roboto, Arial, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 24px 16px 64px; }
+  header { text-align: center; padding: 8px 0 20px; border-bottom: 3px solid var(--gold); margin-bottom: 24px; }
+  header img { width: 120px; height: auto; display: block; margin: 0 auto 4px; }
+  header .club { font-size: 26px; font-weight: 700; color: var(--rot); letter-spacing: .5px; margin: 0; }
+  header .unter { color: var(--gold); font-weight: 600; margin: 2px 0 0; text-transform: uppercase; font-size: 13px; letter-spacing: 2px; }
+  h1 { font-size: 22px; color: var(--rot); margin: 0 0 8px; }
+  .anleitung { background: var(--karte); border: 1px solid var(--linie); border-left: 5px solid var(--gold);
+    border-radius: 10px; padding: 16px 18px; margin-bottom: 24px; }
+  .anleitung p { margin: 0 0 8px; } .anleitung p:last-child { margin: 0; }
+  .anleitung ol { margin: 8px 0 0; padding-left: 22px; }
+  .hinweis { background: var(--gold-hell); border-radius: 10px; padding: 12px 16px; margin-bottom: 18px; }
+  .liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+  .spruch { display: flex; gap: 14px; align-items: flex-start; background: var(--karte); border: 2px solid var(--linie);
+    border-radius: 10px; padding: 14px 16px; cursor: pointer; transition: border-color .15s, background .15s; }
+  .spruch:hover { border-color: var(--gold); }
+  .spruch input { width: 24px; height: 24px; margin: 2px 0 0; flex: none; accent-color: var(--rot); cursor: pointer; }
+  .spruch .nr { font-weight: 700; color: var(--gold); min-width: 26px; }
+  .spruch .t { flex: 1; }
+  .spruch.gewaehlt { border-color: var(--rot); background: #fbf2f3; }
+  .spruch.vergeben { background: var(--grau); color: var(--text-leise); cursor: not-allowed; border-style: dashed; }
+  .spruch.vergeben .t { text-decoration: line-through; text-decoration-color: #b9aea6; }
+  .spruch .wer { display: block; text-decoration: none; font-size: 14px; font-weight: 600; color: var(--rot); margin-top: 4px; }
+  .liste.aus .spruch:not(.vergeben) { opacity: .45; pointer-events: none; }
+  .optout { display: flex; gap: 14px; align-items: flex-start; margin: 26px 0 0; padding: 16px; border-radius: 10px;
+    background: var(--karte); border: 2px solid var(--linie); cursor: pointer; }
+  .optout input { width: 24px; height: 24px; margin: 2px 0 0; flex: none; accent-color: var(--rot); }
+  .optout.an { border-color: var(--rot); background: #fbf2f3; }
+  button { display: block; width: 100%; margin-top: 22px; padding: 16px; border: 0; border-radius: 10px;
+    background: var(--rot); color: #fff; font: inherit; font-weight: 700; font-size: 18px; cursor: pointer; }
+  button:hover { background: var(--rot-dunkel); }
+  button:disabled { background: #b8aca6; cursor: default; }
+  .fehler { color: #a3202e; font-weight: 600; margin-top: 12px; min-height: 1.5em; }
+  .danke { text-align: center; background: var(--karte); border: 1px solid var(--linie); border-top: 5px solid var(--gold);
+    border-radius: 10px; padding: 32px 20px; }
+  .danke h1 { font-size: 28px; }
+  .danke blockquote { margin: 18px auto 0; max-width: 520px; font-style: italic; color: var(--rot); font-size: 19px; }
+  .danke .aendern { background: none; color: var(--rot); text-decoration: underline; font-weight: 600; width: auto;
+    margin: 22px auto 0; padding: 6px; font-size: 16px; }
+  .leise { color: var(--text-leise); font-size: 14px; text-align: center; margin-top: 32px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <img src="kc-kochmuetze-schwarz.webp" alt="Kochmütze – Logo Köcheclub Werne">
+    <p class="club">Köcheclub Werne</p>
+    <p class="unter">Weihnachtsmarkt 2026</p>
+  </header>
+
+  <section id="laden"><p style="text-align:center">Einen Moment, die Sprüche werden geladen …</p></section>
+
+  <section id="problem" hidden>
+    <div class="anleitung"><h1 id="problemTitel">Link nicht gültig</h1><p id="problemText"></p></div>
+  </section>
+
+  <section id="auswahl" hidden>
+    <div class="anleitung">
+      <h1>Hallo <span id="vorname"></span>,</h1>
+      <p>gleich kommt die Übersicht mit den vorhandenen Motivationssprüchen für den TV an der Nebenhütte.
+         Bitte suche dir deinen aus – ausgesuchte Sprüche werden dann für alle anderen blockiert.</p>
+      <p><strong>So geht's:</strong></p>
+      <ol>
+        <li>Lies dir die Sprüche durch.</li>
+        <li>Setze bei deinem Lieblingsspruch einen Haken. Graue Sprüche hat schon jemand anderes ausgesucht.</li>
+        <li>Unten auf <strong>„Auswahl absenden“</strong> tippen – fertig.</li>
+      </ol>
+      <p>Möchtest du nicht mit Spruch und Foto in der Präsentation erscheinen? Dann setze ganz unten den Haken.</p>
+    </div>
+
+    <div class="hinweis" id="bisher" hidden></div>
+
+    <ul class="liste" id="liste"></ul>
+
+    <label class="optout" id="optoutBox">
+      <input type="checkbox" id="optout">
+      <span><strong>Ich möchte nicht in der Präsentation mit einem Motivationsspruch und Foto erscheinen.</strong></span>
+    </label>
+
+    <button id="senden" disabled>Auswahl absenden</button>
+    <p class="fehler" id="fehler" role="alert"></p>
+  </section>
+
+  <section id="fertig" hidden>
+    <div class="danke">
+      <img src="kc-kochmuetze-schwarz.webp" alt="" width="70">
+      <h1>Danke für deine Mitarbeit!</h1>
+      <p id="dankeText"></p>
+      <blockquote id="dankeSpruch"></blockquote>
+      <button class="aendern" id="aendern">Auswahl doch noch ändern</button>
+    </div>
+  </section>
+
+  <p class="leise">Köcheclub Werne · Weihnachtsmarkt 2026</p>
+</main>
+
+<script>
+(() => {
+  const API = 'https://ptblnpiroqftcvlsrhac.supabase.co/rest/v1/rpc/';
+  const KEY = 'sb_publishable_SqXIeGN-clcZ4gjmpLdSww_4DLfyy24';
+  const token = new URLSearchParams(location.search).get('t') || '';
+  const $ = (id) => document.getElementById(id);
+  let daten = null, gewaehlt = null;
+
+  async function rpc(name, body) {
+    const r = await fetch(API + name, {
+      method: 'POST',
+      headers: { apikey: KEY, 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    if (!r.ok) throw new Error('Serverfehler ' + r.status);
+    return r.json();
+  }
+
+  function zeige(id) {
+    for (const s of ['laden', 'problem', 'auswahl', 'fertig']) $(s).hidden = s !== id;
+    window.scrollTo(0, 0);
+  }
+
+  function problem(titel, text) {
+    $('problemTitel').textContent = titel; $('problemText').textContent = text; zeige('problem');
+  }
+
+  function aktualisiereKnopf() {
+    const aus = $('optout').checked;
+    $('liste').classList.toggle('aus', aus);
+    $('optoutBox').classList.toggle('an', aus);
+    $('senden').disabled = !(aus || gewaehlt);
+  }
+
+  function baueListe() {
+    const ul = $('liste'); ul.innerHTML = '';
+    for (const s of daten.sprueche) {
+      const li = document.createElement('li');
+      const label = document.createElement('label');
+      label.className = 'spruch';
+      const cb = document.createElement('input');
+      cb.type = 'checkbox'; cb.value = s.id;
+      const nr = document.createElement('span'); nr.className = 'nr'; nr.textContent = s.id + '.';
+      const t = document.createElement('span'); t.className = 't'; t.textContent = '„' + s.text + '“';
+      if (s.vergeben_an) {
+        label.classList.add('vergeben'); cb.disabled = true; cb.checked = true;
+        const wer = document.createElement('span'); wer.className = 'wer';
+        wer.textContent = '✔ hat ' + s.vergeben_an + ' schon ausgesucht';
+        t.appendChild(wer);
+      } else if (s.id === gewaehlt) {
+        cb.checked = true; label.classList.add('gewaehlt');
+      }
+      cb.addEventListener('change', () => {
+        gewaehlt = cb.checked ? s.id : null;
+        if (cb.checked) $('optout').checked = false;
+        baueListe(); aktualisiereKnopf();
+      });
+      label.append(cb, nr, t); li.appendChild(label); ul.appendChild(li);
+    }
+  }
+
+  async function laden() {
+    if (!token) return problem('Link nicht gültig', 'Bitte öffne die Seite über den Link aus deiner E-Mail.');
+    try { daten = await rpc('kc_wm_spruch_liste', { p_token: token }); }
+    catch { return problem('Keine Verbindung', 'Die Sprüche konnten nicht geladen werden. Bitte versuche es gleich noch einmal.'); }
+    if (!daten.ok) return problem('Link nicht gültig', 'Dieser Link ist nicht (mehr) gültig. Bitte melde dich beim Vorstand.');
+    $('vorname').textContent = daten.ich.vorname;
+    gewaehlt = daten.ich.spruch_id;
+    $('optout').checked = daten.ich.nicht_in_praesentation;
+    const bisher = $('bisher');
+    if (!daten.offen) {
+      bisher.hidden = false;
+      bisher.textContent = 'Die Auswahl ist abgeschlossen. Änderungen sind nicht mehr möglich.';
+      $('senden').hidden = true;
+    } else if (daten.ich.abgegeben) {
+      bisher.hidden = false;
+      bisher.textContent = daten.ich.nicht_in_praesentation
+        ? 'Du hast angegeben, dass du nicht in der Präsentation erscheinen möchtest. Du kannst das hier noch ändern.'
+        : 'Deine bisherige Auswahl ist markiert. Du kannst sie hier noch ändern.';
+    }
+    baueListe(); aktualisiereKnopf(); zeige('auswahl');
+  }
+
+  $('optout').addEventListener('change', () => {
+    if ($('optout').checked) gewaehlt = null;
+    baueListe(); aktualisiereKnopf();
+  });
+
+  $('senden').addEventListener('click', async () => {
+    const aus = $('optout').checked;
+    $('senden').disabled = true; $('fehler').textContent = '';
+    let r;
+    try { r = await rpc('kc_wm_spruch_waehlen', { p_token: token, p_spruch_id: aus ? null : gewaehlt, p_nicht_in_praesentation: aus }); }
+    catch { $('fehler').textContent = 'Das Absenden hat nicht geklappt. Bitte versuche es noch einmal.'; aktualisiereKnopf(); return; }
+    if (!r.ok) {
+      if (r.grund === 'vergeben') {
+        $('fehler').textContent = 'Schade – diesen Spruch hat ' + (r.von || 'jemand') + ' gerade eben ausgesucht. Bitte wähle einen anderen.';
+        gewaehlt = null;
+        const f = $('fehler').textContent;
+        await laden(); $('fehler').textContent = f;
+      } else if (r.grund === 'geschlossen') {
+        $('fehler').textContent = 'Die Auswahl ist inzwischen abgeschlossen.';
+      } else {
+        $('fehler').textContent = 'Das hat nicht geklappt. Bitte lade die Seite neu.';
+      }
+      return;
+    }
+    if (aus) {
+      $('dankeText').textContent = 'Wir haben vermerkt, dass du nicht mit Spruch und Foto in der Präsentation erscheinen möchtest.';
+      $('dankeSpruch').textContent = '';
+    } else {
+      const s = daten.sprueche.find(x => x.id === gewaehlt);
+      $('dankeText').textContent = 'Dein Spruch für den TV an der Nebenhütte:';
+      $('dankeSpruch').textContent = s ? '„' + s.text + '“' : '';
+    }
+    zeige('fertig');
+  });
+
+  $('aendern').addEventListener('click', laden);
+  laden();
+})();
+</script>
+</body>
+</html>
