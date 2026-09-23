@@ -8,6 +8,16 @@
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const istApp = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const kannPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  // Push soll aufs HANDY. Am PC zeigen wir deshalb einen QR-Code zum Abscannen statt des Knopfs.
+  const istHandy = istIOS || /Android|Mobile|iPhone|iPod/i.test(navigator.userAgent);
+  const QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js';
+
+  function ladeQrLib() {
+    if (window.qrcode) return Promise.resolve();
+    return new Promise((ok, fehler) => {
+      const s = document.createElement('script'); s.src = QR_LIB; s.onload = ok; s.onerror = fehler; document.head.appendChild(s);
+    });
+  }
 
   const CSS = `
   .kcpush{margin:22px 0 0;padding:18px;border:2px solid #b8913a;border-radius:12px;background:#fffaf0;text-align:left;
@@ -20,7 +30,11 @@
   .kcpush .st{margin-top:12px;font-weight:600;min-height:1.2em}
   .kcpush .st.ok{color:#2f6b3a}.kcpush .st.fehler{color:#a3202e}
   .kcpush .klein{font-size:14px;color:#6b5f5a;margin-top:12px}
-  .kcpush ol{margin:6px 0 10px;padding-left:22px}`;
+  .kcpush ol{margin:6px 0 10px;padding-left:22px}
+  .kcpush .qr{display:flex;gap:18px;align-items:center;flex-wrap:wrap;margin:8px 0 4px}
+  .kcpush .qr .code{background:#fff;padding:8px;border:1px solid #e6ddd0;border-radius:8px;line-height:0}
+  .kcpush .qr .code svg{width:170px;height:170px}
+  .kcpush .qr ol{flex:1;min-width:200px;margin:0}`;
 
   function stil() {
     if (document.getElementById('kcpush-css')) return;
@@ -98,6 +112,30 @@
     }
   }
 
+  async function amPc(box, token) {
+    const link = BASE + 'push.html?t=' + encodeURIComponent(token);
+    box.querySelectorAll('p')[1].innerHTML = 'Die Push-Nachrichten kommen aufs <strong>Handy</strong> – deshalb wird die Freischaltung dort gemacht:';
+    const knopf = box.querySelector('button');
+    const qr = document.createElement('div'); qr.className = 'qr';
+    qr.innerHTML = `<div class="code">QR-Code wird geladen …</div>
+      <ol>
+        <li>Öffne am Handy die <strong>Kamera</strong> und halte sie auf den QR-Code.</li>
+        <li>Tippe auf den Link, der erscheint.</li>
+        <li>Tippe auf dem Handy auf <strong>„Push freischalten“</strong> – fertig.</li>
+      </ol>`;
+    knopf.replaceWith(qr);
+    const hinweis = document.createElement('p'); hinweis.className = 'klein';
+    hinweis.innerHTML = 'Kein QR-Code-Scanner zur Hand? Kein Problem – Hansi schickt dir den Link auch per WhatsApp aufs Handy.';
+    qr.after(hinweis);
+    try {
+      await ladeQrLib();
+      const q = window.qrcode(0, 'M'); q.addData(link); q.make();
+      qr.querySelector('.code').innerHTML = q.createSvgTag({ cellSize: 4, margin: 2, scalable: true });
+    } catch {
+      qr.querySelector('.code').innerHTML = `<a href="${link}" style="line-height:1.4">${link}</a>`;
+    }
+  }
+
   window.KCPush = {
     anbieten(ziel, token, quelle) {
       if (!ziel || !token) return;
@@ -115,6 +153,7 @@
              Wir können die Push-Nachrichten auch später noch für dich freischalten.</p>
         </div>`;
       const box = ziel.querySelector('.kcpush');
+      if (!istHandy) { amPc(box, token); return; }
       box.querySelector('button').addEventListener('click', () => freischalten(box, token, quelle || ''));
     }
   };
