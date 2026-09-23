@@ -8,6 +8,8 @@
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
   const istApp = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
   const kannPush = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  // Xiaomi-Browser nimmt Push an, zeigt die Nachrichten aber oft nicht an -> in Chrome öffnen lassen
+  const istMiBrowser = /MiuiBrowser|XiaoMi\//i.test(navigator.userAgent);
   // Push soll aufs HANDY. Am PC zeigen wir deshalb einen QR-Code zum Abscannen statt des Knopfs.
   const istTablet = /iPad/.test(navigator.userAgent) ||
     (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ||
@@ -208,6 +210,17 @@
              Wir können die Push-Nachrichten auch später noch für dich freischalten.</p>
         </div>`;
       const box = ziel.querySelector('.kcpush');
+      if (istMiBrowser) {
+        const link = BASE + 'push.html?t=' + encodeURIComponent(token);
+        box.querySelectorAll('p')[1].innerHTML = 'Das klappt nur in <strong>Chrome</strong>. Bitte öffne diesen Link in Chrome und tippe dort auf „Push freischalten“:';
+        const knopf = box.querySelector('button');
+        knopf.textContent = 'Link kopieren';
+        knopf.addEventListener('click', async () => {
+          try { await navigator.clipboard.writeText(link); knopf.textContent = '✓ Kopiert – jetzt in Chrome einfügen'; }
+          catch { prompt('Link kopieren:', link); }
+        });
+        return;
+      }
       if (istIOS && !istApp && /push\.html$/.test(location.pathname)) {
         box.querySelectorAll('p')[1].innerHTML = '<strong>So geht es auf dem iPhone:</strong>';
         const schritte = document.createElement('div'); schritte.innerHTML = iosAnleitung();
