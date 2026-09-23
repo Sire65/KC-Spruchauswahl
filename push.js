@@ -38,6 +38,7 @@
   .kcpush ol{margin:6px 0 10px;padding-left:22px}
   .kcpush .test{margin-top:14px}
   .kcpush button.zweit{background:#fff;color:#7a1f2b;border:2px solid #7a1f2b;font-size:16px;padding:12px}
+  .kcpush button.aus{background:#fff;color:#6b5f5a;border:1px solid #b8aca6;font-size:15px;padding:11px}
   .kcpush .tst{margin-top:8px;font-weight:600;min-height:1.2em}.kcpush .tst.ok{color:#2f6b3a}.kcpush .tst.fehler{color:#a3202e}
   .kcpush .ios{display:grid;gap:10px;margin-top:4px}
   .kcpush .schritt{display:flex;align-items:center;gap:14px;padding:12px 14px;background:#fff;border:1px solid #e6ddd0;border-radius:12px;font-size:18px;font-weight:400;color:#2a2220}
@@ -138,16 +139,64 @@
         zeige('✅ Push ist freigeschaltet! Deine erste Nachricht vom Köcheclub ist unterwegs.', 'ok');
         knopf.textContent = 'Push ist freigeschaltet';
         testBereich(box, token, sub.endpoint);
+        deaktivierBereich(box, token);
       } else if (d.grund === 'link_ungueltig') {
         zeige('Dein persönlicher Link ist nicht gültig. Bitte melde dich bei Hansi.', 'fehler'); knopf.disabled = false;
       } else {
-        zeige('Die Freischaltung ist gespeichert, aber die erste Nachricht kam nicht an. Bitte melde dich bei Hansi.', 'fehler');
+        // Keine halbfertige Anmeldung stehen lassen.
+        await sub.unsubscribe().catch(() => false);
+        await fetch(FN, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'unsubscribe', token, endpoint: sub.endpoint })
+        }).catch(() => {});
+        zeige('Die Freischaltung hat nicht sauber funktioniert und wurde automatisch wieder ausgeschaltet. Bitte versuche es noch einmal oder melde dich bei Hansi.', 'fehler');
         knopf.disabled = false;
       }
     } catch (e) {
       zeige('Das hat leider nicht geklappt. Bitte versuche es noch einmal oder melde dich bei Hansi.', 'fehler');
       knopf.disabled = false;
     }
+  }
+
+  async function pushDeaktivieren(box, token) {
+    const st = box.querySelector('.st');
+    const aus = box.querySelector('button.aus');
+    if (aus) aus.disabled = true;
+    try {
+      const reg = await navigator.serviceWorker.getRegistration(BASE);
+      const sub = reg && await reg.pushManager.getSubscription();
+      const endpoint = sub ? sub.endpoint : '';
+      if (sub) await sub.unsubscribe().catch(() => false);
+
+      const r = await fetch(FN, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'unsubscribe', token, endpoint })
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!d.ok) throw new Error(d.grund || 'deaktivieren');
+
+      st.className = 'st ok';
+      st.textContent = '✅ Push ist deaktiviert. Dieses Gerät bekommt keine Köcheclub-Push-Nachrichten mehr.';
+      box.querySelector('.test')?.remove();
+      box.querySelector('.ausbereich')?.remove();
+      const haupt = box.querySelector('button:not(.zweit):not(.aus)');
+      if (haupt) { haupt.disabled = false; haupt.textContent = 'Push wieder freischalten'; }
+    } catch {
+      if (aus) aus.disabled = false;
+      st.className = 'st fehler';
+      st.innerHTML = 'Push konnte nicht vollständig deaktiviert werden. Bitte in Chrome zusätzlich unter <strong>Website-Einstellungen → Benachrichtigungen</strong> diese Seite blockieren.';
+    }
+  }
+
+  function deaktivierBereich(box, token) {
+    if (box.querySelector('.ausbereich')) return;
+    const d = document.createElement('div');
+    d.className = 'ausbereich';
+    d.innerHTML = `<p class="klein">Möchtest du später keine Push-Nachrichten mehr? Dann kannst du sie hier mit einem Klick wieder ausschalten.</p>
+      <button type="button" class="aus">Push wieder deaktivieren</button>`;
+    const test = box.querySelector('.test');
+    (test || box.querySelector('.st')).after(d);
+    d.querySelector('button').addEventListener('click', () => pushDeaktivieren(box, token));
   }
 
   // Test-Nachricht: nach der Freischaltung und wenn Push auf diesem Gerät schon an ist
@@ -180,6 +229,7 @@
       const st = box.querySelector('.st');
       st.className = 'st ok'; st.textContent = '✅ Push ist auf diesem Gerät schon an.';
       testBereich(box, token, sub.endpoint);
+      deaktivierBereich(box, token);
     } catch {}
   }
 
