@@ -16,6 +16,13 @@
     (/Android/i.test(navigator.userAgent) && !/Mobile/i.test(navigator.userAgent));
   const istHandy = !istTablet && (istIOS || /Android|Mobile|iPhone|iPod/i.test(navigator.userAgent));
   const QR_LIB = 'https://cdn.jsdelivr.net/npm/qrcode-generator@2.0.4/dist/qrcode.js';
+  const WANTED_KEY = 'kc_push_wanted_v2';
+  const HARD_PUSH_ERRORS = new Set(['404', '410', '403']);
+
+  function pushGewollt() { return localStorage.getItem(WANTED_KEY) === '1'; }
+  function pushWunschSetzen(an) {
+    try { localStorage.setItem(WANTED_KEY, an ? '1' : '0'); } catch {}
+  }
 
   function ladeQrLib() {
     if (window.qrcode) return Promise.resolve();
@@ -77,6 +84,42 @@
     });
   }
 
+  async function workerUndKonfig() {
+    const reg = await aktiv(await navigator.serviceWorker.register(BASE + 'sw.js', {
+      scope: BASE,
+      updateViaCache: 'none'
+    }));
+    await reg.update().catch(() => {});
+    const cfgRes = await fetch(FN, { cache: 'no-store' });
+    const cfg = await cfgRes.json();
+    if (!cfg.vapidPublicKey) throw new Error('kein Schlüssel');
+    return { reg, schluessel: b64ToBytes(cfg.vapidPublicKey) };
+  }
+
+  async function serverStatus(token, endpoint) {
+    const r = await fetch(FN, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'status', token, endpoint })
+    });
+    return r.json().catch(() => ({}));
+  }
+
+  async function serverSichern(token, sub, quelle, action = 'ensure') {
+    const r = await fetch(FN, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        action, token, subscription: sub.toJSON(),
+        userAgent: navigator.userAgent, quelle
+      })
+    });
+    return r.json().catch(() => ({}));
+  }
+
+  async function frischeSubscription(reg, schluessel, alt) {
+    if (alt) await alt.unsubscribe().catch(() => {});
+    return reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: schluessel });
+  }
+
   // iPhone: nur 3 große Schritte mit Bild, kaum Text.
   const ICON_TEILEN = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#0a7aff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M8 7l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
   const ICON_PLUS = '<svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2a2220" stroke-width="2" stroke-linecap="round"><rect x="3" y="3" width="18" height="18" rx="4"/><path d="M12 8v8M8 12h8"/></svg>';
@@ -112,30 +155,22 @@
           '– oder Hansi schaltet sie mit dir zusammen frei.', 'fehler');
         knopf.disabled = false; return;
       }
-      const reg = await aktiv(await navigator.serviceWorker.register(BASE + 'sw.js', { scope: BASE }));
-      const cfg = await (await fetch(FN)).json();
-      if (!cfg.vapidPublicKey) throw new Error('kein Schlüssel');
-      const schluessel = b64ToBytes(cfg.vapidPublicKey);
-      const neu = () => reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: schluessel });
-      const anmelden = async (s) => {
-        const r = await fetch(FN, {
-          method: 'POST', headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ action: 'subscribe', token, subscription: s.toJSON(), userAgent: navigator.userAgent, quelle })
-        });
-        return r.json().catch(() => ({}));
-      };
+      const { reg, schluessel } = await workerUndKonfig();
+      const neu = () => frischeSubscription(reg, schluessel, null);
+      const anmelden = (s) => serverSichern(token, s, quelle, 'subscribe');
       // Vorhandene Anmeldung nur behalten, wenn sie zum aktuellen Schlüssel passt
       let sub = await reg.pushManager.getSubscription();
       if (sub && !gleicherSchluessel(sub, schluessel)) { await sub.unsubscribe().catch(() => {}); sub = null; }
       if (!sub) sub = await neu();
       let d = await anmelden(sub);
       // Google lehnt eine alte/ungültige Anmeldung ab (404/410/403): einmal frisch anmelden und erneut versuchen
-      if (!d.ok && ['404', '410', '403'].includes(String(d.code))) {
+      if (!d.ok && HARD_PUSH_ERRORS.has(String(d.code))) {
         await sub.unsubscribe().catch(() => {});
         sub = await neu();
         d = await anmelden(sub);
       }
       if (d.ok) {
+        pushWunschSetzen(true);
         zeige('✅ Push ist freigeschaltet! Deine erste Nachricht vom Köcheclub ist unterwegs.', 'ok');
         knopf.textContent = 'Push ist freigeschaltet';
         testBereich(box, token, sub.endpoint);
@@ -160,6 +195,7 @@
 
   async function pushDeaktivieren(box, token) {
     const st = box.querySelector('.st');
+    pushWunschSetzen(false);
     const aus = box.querySelector('button.aus');
     if (aus) aus.disabled = true;
     try {
@@ -180,7 +216,7 @@
       box.querySelector('.test')?.remove();
       box.querySelector('.ausbereich')?.remove();
       const haupt = box.querySelector('button:not(.zweit):not(.aus)');
-      if (haupt) { haupt.disabled = false; haupt.textContent = 'Push wieder freischalten'; }
+      if (haupt) { haupt.disabled = false; haupt.textContent = 'Push wieder aktivieren'; }
     } catch {
       if (aus) aus.disabled = false;
       st.className = 'st fehler';
@@ -214,25 +250,69 @@
           body: JSON.stringify({ action: 'test', token, endpoint }) });
         const d = await r.json().catch(() => ({}));
         if (d.ok) { st.className = 'tst ok'; st.textContent = '✅ Test-Nachricht ist unterwegs – schau aufs Handy.'; }
-        else { st.className = 'tst fehler'; st.textContent = 'Das hat nicht geklappt. Bitte tippe oben noch einmal auf „Push freischalten“.'; }
+        else { st.className = 'tst fehler'; st.textContent = 'Das hat nicht geklappt. Bitte tippe oben noch einmal auf „Push aktivieren“.'; }
       } catch { st.className = 'tst fehler'; st.textContent = 'Keine Verbindung. Bitte später noch einmal versuchen.'; }
       setTimeout(() => { k.disabled = false; }, 5000);
     });
   }
 
-  async function schonAn(box, token) {
+  async function automatischPruefen(box, token, quelle) {
     if (!kannPush || Notification.permission !== 'granted') return;
+    const st = box.querySelector('.st');
     try {
-      const reg = await navigator.serviceWorker.getRegistration(BASE);
-      const sub = reg && await reg.pushManager.getSubscription();
-      if (!sub) return;
-      const st = box.querySelector('.st');
-      st.className = 'st ok'; st.textContent = '✅ Push ist auf diesem Gerät schon an.';
+      const { reg, schluessel } = await workerUndKonfig();
+      let sub = await reg.pushManager.getSubscription();
+
+      // Eine bestehende Subscription bedeutet: Das Mitglied hatte Push bereits freigeschaltet.
+      if (sub) pushWunschSetzen(true);
+
+      // Explizites Ausschalten in unserer Oberfläche respektieren.
+      if (!sub && !pushGewollt()) return;
+
+      // Falscher/alter VAPID-Schlüssel oder verlorene Subscription -> still reparieren.
+      if (sub && !gleicherSchluessel(sub, schluessel)) {
+        sub = await frischeSubscription(reg, schluessel, sub);
+      } else if (!sub && pushGewollt()) {
+        sub = await frischeSubscription(reg, schluessel, null);
+      }
+
+      let status = await serverStatus(token, sub.endpoint);
+      if (status.found && status.active && !HARD_PUSH_ERRORS.has(String(status.lastError || ''))) {
+        st.className = 'st ok';
+        st.textContent = '✅ Push ist auf diesem Gerät aktiv.';
+        testBereich(box, token, sub.endpoint);
+        deaktivierBereich(box, token);
+        return;
+      }
+
+      // 404/410/403 heißt: Der Push-Dienst kennt die alte Subscription nicht mehr.
+      // Dann erzeugen wir ohne erneute Berechtigungsfrage eine frische Subscription.
+      if (HARD_PUSH_ERRORS.has(String(status.lastError || ''))) {
+        sub = await frischeSubscription(reg, schluessel, sub);
+      } else if (status.found && status.active === false) {
+        // Server-seitig bewusst deaktiviert: nicht eigenmächtig wieder einschalten.
+        pushWunschSetzen(false);
+        st.className = 'st';
+        st.textContent = 'Push ist für dieses Gerät deaktiviert. Du kannst es mit einem Klick wieder freischalten.';
+        return;
+      }
+
+      const d = await serverSichern(token, sub, quelle || 'auto-repair', 'ensure');
+      if (!d.ok) throw new Error(d.grund || 'ensure');
+
+      pushWunschSetzen(true);
+      st.className = 'st ok';
+      st.textContent = d.repaired
+        ? '✅ Push wurde automatisch repariert und ist wieder aktiv.'
+        : '✅ Push ist auf diesem Gerät aktiv.';
       testBereich(box, token, sub.endpoint);
       deaktivierBereich(box, token);
-    } catch {}
+    } catch {
+      // Selbstheilung darf die Seite nie blockieren. Der Benutzer behält den normalen Ein-Klick-Weg.
+      st.className = 'st';
+      st.textContent = 'Push konnte gerade nicht automatisch geprüft werden. Bei Bedarf einmal auf „Push aktivieren“ tippen.';
+    }
   }
-
   async function amPc(box, token, alsZusatz) {
     const link = BASE + 'push.html?t=' + encodeURIComponent(token);
     if (alsZusatz) {
@@ -248,7 +328,7 @@
       <ol>
         <li>Öffne am Handy die <strong>Kamera</strong> und halte sie auf den QR-Code.</li>
         <li>Tippe auf den Link, der erscheint.</li>
-        <li>Tippe auf dem Handy auf <strong>„Push freischalten“</strong> – fertig.</li>
+        <li>Tippe auf dem Handy auf <strong>„Push aktivieren“</strong> – fertig.</li>
       </ol>`;
     knopf.replaceWith(qr);
     const hinweis = document.createElement('p'); hinweis.className = 'klein';
@@ -272,9 +352,9 @@
           <h2>&#128276; Push-Nachrichten vom Köcheclub</h2>
           <p>Möchtest du vom Köcheclub Push-Nachrichten auf deinem Handy empfangen? Dann bekommst du kurze Texte,
              z. B. wenn sich dein Dienstplan geändert hat, wenn das nächste Treffen ansteht usw.</p>
-          <p>Dazu klicke jetzt auf <strong>„Push freischalten“</strong> – dann werden die Einstellungen übernommen
-             und du erhältst deine erste Push-Nachricht vom Köcheclub.</p>
-          <button type="button">Push freischalten</button>
+          <p>Beim ersten Mal genügt <strong>ein Klick auf „Push aktivieren“</strong>. Danach prüft und repariert das System
+             die Push-Verbindung automatisch, ohne dass du Handy-Einstellungen durchsuchen musst.</p>
+          <button type="button">Push aktivieren</button>
           <div class="st"></div>
           <p class="klein">Wenn du noch Fragen dazu hast, wende dich gerne an Hansi.
              Wir können die Push-Nachrichten auch später noch für dich freischalten.</p>
@@ -282,7 +362,7 @@
       const box = ziel.querySelector('.kcpush');
       if (istMiBrowser) {
         const link = BASE + 'push.html?t=' + encodeURIComponent(token);
-        box.querySelectorAll('p')[1].innerHTML = 'Das klappt nur in <strong>Chrome</strong>. Bitte öffne diesen Link in Chrome und tippe dort auf „Push freischalten“:';
+        box.querySelectorAll('p')[1].innerHTML = 'Das klappt nur in <strong>Chrome</strong>. Bitte öffne diesen Link in Chrome und tippe dort auf „Push aktivieren“:';
         const knopf = box.querySelector('button');
         knopf.textContent = 'Link kopieren';
         knopf.addEventListener('click', async () => {
@@ -296,7 +376,7 @@
         const schritte = document.createElement('div'); schritte.innerHTML = iosAnleitung();
         box.querySelector('button').replaceWith(schritte);
         const danach = document.createElement('p'); danach.style.marginTop = '12px';
-        danach.innerHTML = 'Dort dann auf <strong>„Push freischalten“</strong> tippen – fertig.';
+        danach.innerHTML = 'Dort dann auf <strong>„Push aktivieren“</strong> tippen – fertig.';
         schritte.after(danach);
         return;
       }
@@ -311,12 +391,12 @@
         const kopie = box.cloneNode(false); kopie.innerHTML = '<p></p><p></p><button></button>';
         extra.appendChild(kopie);
         amPc(kopie, token, true);
-        schonAn(box, token);
+        automatischPruefen(box, token, quelle || 'auto-check');
         return;
       }
       if (!istHandy) { amPc(box, token); return; }
       box.querySelector('button').addEventListener('click', () => freischalten(box, token, quelle || ''));
-      schonAn(box, token);
+      automatischPruefen(box, token, quelle || 'auto-check');
     }
   };
 })();
