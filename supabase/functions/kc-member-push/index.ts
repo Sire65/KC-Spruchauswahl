@@ -37,16 +37,66 @@ async function secret(db: any, name: string) {
 
 async function senden(admin: any, s: { id: string; subscription: any }, personId: string, anlass: string, title: string, body: string) {
   const now = new Date().toISOString();
+  const trackingToken = crypto.randomUUID();
   let status = 'sent', code: string | null = null;
+
+  // Pro Nachricht zuerst eine nicht erratbare Tracking-ID anlegen.
+  // So kann die Anzeige-/Öffnungsquittung selbst dann sicher zugeordnet werden,
+  // wenn sie sehr schnell nach dem Web-Push eintrifft.
+  const { data: log } = await admin.from('kc_member_push_messages').insert({
+    person_id: personId,
+    subscription_id: s.id,
+    anlass,
+    title,
+    body,
+    status: 'sending',
+    error_code: null,
+    tracking_token: trackingToken,
+  }).select('id').maybeSingle();
+
   try {
-    await webpush.sendNotification(s.subscription, JSON.stringify({ title, body, data: { url: PUSH_URL, anlass } }), PUSH_OPTIONS);
-    await admin.from('kc_member_push_subscriptions').update({ last_success_at: now, last_error: null }).eq('id', s.id);
+    await webpush.sendNotification(
+      s.subscription,
+      JSON.stringify({
+        title,
+        body,
+        data: { url: PUSH_URL, anlass, memberMessageToken: trackingToken },
+      }),
+      PUSH_OPTIONS,
+    );
+    await admin.from('kc_member_push_subscriptions')
+      .update({ last_success_at: now, last_error: null })
+      .eq('id', s.id);
   } catch (e) {
     status = 'failed';
     code = String(Number((e as any)?.statusCode) || 'push_error');
-    await admin.from('kc_member_push_subscriptions').update({ last_error: code, active: ![404, 410].includes(Number(code)), updated_at: now }).eq('id', s.id);
+    await admin.from('kc_member_push_subscriptions')
+      .update({
+        last_error: code,
+        active: ![404, 410].includes(Number(code)),
+        updated_at: now,
+      })
+      .eq('id', s.id);
   }
-  await admin.from('kc_member_push_messages').insert({ person_id: personId, subscription_id: s.id, anlass, title, body, status, error_code: code });
+
+  if (log?.id) {
+    await admin.from('kc_member_push_messages')
+      .update({ status, error_code: code })
+      .eq('id', log.id);
+  } else {
+    // Logging darf den eigentlichen Push-Versand nicht blockieren.
+    await admin.from('kc_member_push_messages').insert({
+      person_id: personId,
+      subscription_id: s.id,
+      anlass,
+      title,
+      body,
+      status,
+      error_code: code,
+      tracking_token: trackingToken,
+    });
+  }
+
   return { status, code };
 }
 
